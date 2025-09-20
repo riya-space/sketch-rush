@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch Rush</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; margin: 0; padding: 0; }
+  #game-container { margin: 20px auto; width: 600px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+  canvas { border: 1px solid #333; cursor: crosshair; background: #fff; border-radius: 5px; }
+  button {
+    margin: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    background-color: #333;
+    color: #fff;
+    transition: all 0.2s ease;
+  }
+  button:hover { background-color: #555; transform: translateY(-2px); }
+  button:active { background-color: #111; transform: translateY(1px); }
+  button:disabled { background-color: #aaa; cursor: not-allowed; }
+  button.active { background-color: #007BFF; color: #fff; transform: translateY(-2px); }
+  #timer { font-size: 24px; margin: 10px; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <h1>Sketch Rush</h1>
+  <canvas id="drawingCanvas" width="600" height="400"></canvas>
+  <div>
+    <button id="startBtn">Start Game</button>
+    <button id="pencilBtn" disabled>Pencil</button>
+    <button id="eraserBtn" disabled>Eraser</button>
+    <button id="clearBtn" disabled>Clear</button>
+    <button id="nextBtn" disabled>Next Word</button>
+  </div>
+  <div id="timer">Time: 60s</div>
+</div>
+
+<script>
+const canvas = document.getElementById('drawingCanvas');
+const ctx = canvas.getContext('2d');
+let drawing = false;
+let tool = 'pencil';
+let time = 60;
+let timerInterval;
+let gameStarted = false;
+
+// Word list (hidden from drawer)
+const words = ["Pizza", "Rocket", "Sunflower", "Laptop", "Ice Cream", "Elephant"];
+let currentWord = '';
+
+// Pick a random word
+function pickWord() {
+  currentWord = words[Math.floor(Math.random() * words.length)];
+  console.log("Word for guides:", currentWord); // guides can see via console or separate sheet
+}
+
+// Start timer
+function startTimer() {
+  clearInterval(timerInterval);
+  time = 60;
+  document.getElementById('timer').innerText = `Time: ${time}s`;
+  timerInterval = setInterval(() => {
+    time--;
+    document.getElementById('timer').innerText = `Time: ${time}s`;
+    if (time <= 0) {
+      clearInterval(timerInterval);
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // auto clear
+      time = 60;
+      document.getElementById('timer').innerText = `Time: ${time}s`;
+    }
+  }, 1000);
+}
+
+// Drawing functions
+canvas.addEventListener('mousedown', (e) => {
+  if (!gameStarted) return;
+  drawing = true;
+  ctx.beginPath();
+  ctx.moveTo(e.offsetX, e.offsetY);
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (!drawing || !gameStarted) return;
+  ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
+  ctx.lineWidth = tool === 'pencil' ? 3 : 15; // Pencil thin, eraser thick
+  ctx.lineTo(e.offsetX, e.offsetY);
+  ctx.stroke();
+});
+canvas.addEventListener('mouseup', () => { drawing = false; ctx.closePath(); });
+canvas.addEventListener('mouseleave', () => { drawing = false; ctx.closePath(); });
+
+// Buttons
+const pencilBtn = document.getElementById('pencilBtn');
+const eraserBtn = document.getElementById('eraserBtn');
+const clearBtn = document.getElementById('clearBtn');
+const nextBtn = document.getElementById('nextBtn');
+
+function setActiveTool(button) {
+  pencilBtn.classList.remove('active');
+  eraserBtn.classList.remove('active');
+  button.classList.add('active');
+}
+
+pencilBtn.addEventListener('click', () => { 
+  tool = 'pencil'; 
+  setActiveTool(pencilBtn);
+});
+eraserBtn.addEventListener('click', () => { 
+  tool = 'eraser'; 
+  setActiveTool(eraserBtn);
+});
+clearBtn.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
+nextBtn.addEventListener('click', () => {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  pickWord();
+  startTimer();
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  gameStarted = true;
+  pickWord();
+  startTimer();
+  pencilBtn.disabled = false;
+  eraserBtn.disabled = false;
+  clearBtn.disabled = false;
+  nextBtn.disabled = false;
+  document.getElementById('startBtn').disabled = true;
+  setActiveTool(pencilBtn); // default active tool is pencil
+});
+</script>
+
+</body>
+</html>
