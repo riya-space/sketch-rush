@@ -1,66 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sketch Rush</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sketch Rush — Responsive</title>
 <style>
   body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; margin: 0; padding: 0; }
-  #game-container { margin: 20px auto; width: 95%; max-width: 600px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
-  canvas { border: 1px solid #333; cursor: crosshair; background: #fff; border-radius: 5px; width: 100%; height: auto; touch-action: none; }
+  #game-container { margin: 20px auto; width: 95%; max-width: 600px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.12); }
+  canvas { border: 1px solid #333; background: #fff; border-radius: 5px; width: 100%; height: auto; touch-action: none; display: block; }
+  .controls { margin-top: 10px; }
   button {
     margin: 5px;
-    padding: 10px 20px;
-    font-size: 16px;
+    padding: 10px 16px;
+    font-size: 15px;
     cursor: pointer;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     background-color: #333;
     color: #fff;
-    transition: all 0.2s ease;
+    transition: all 0.18s ease;
   }
   button:hover { background-color: #555; transform: translateY(-2px); }
   button:active { background-color: #111; transform: translateY(1px); }
-  button:disabled { background-color: #aaa; cursor: not-allowed; }
+  button:disabled { background-color: #aaa; cursor: not-allowed; transform: none; }
   button.active { background-color: #007BFF; color: #fff; transform: translateY(-2px); }
-  #timer { font-size: 24px; margin: 10px; }
+  #timer { font-size: 20px; margin: 8px 0 0 0; }
+  @media (max-width:420px){
+    button { padding: 8px 12px; font-size: 14px; }
+    #timer { font-size: 18px; }
+  }
 </style>
 </head>
 <body>
 
 <div id="game-container">
-  <h1>Sketch Rush</h1>
+  <h1 style="margin:6px 0 10px 0;">Sketch Rush</h1>
   <canvas id="drawingCanvas" width="600" height="400"></canvas>
-  <div>
+
+  <div class="controls">
     <button id="startBtn">Start Game</button>
     <button id="pencilBtn" disabled>Pencil</button>
     <button id="eraserBtn" disabled>Eraser</button>
     <button id="clearBtn" disabled>Clear</button>
     <button id="nextBtn" disabled>Next Word</button>
   </div>
+
   <div id="timer">Time: 60s</div>
 </div>
 
 <script>
+/* ---------- Setup ---------- */
 const canvas = document.getElementById('drawingCanvas');
 const ctx = canvas.getContext('2d');
 let drawing = false;
 let tool = 'pencil';
 let time = 60;
-let timerInterval;
+let timerInterval = null;
 let gameStarted = false;
 
-// Word list (hidden from drawer)
-const words = ["Pizza", "Rocket", "Sunflower", "Laptop", "Ice Cream", "Elephant"];
+// word list (hidden from drawer)
+const words = ["Pizza","Rocket","Sunflower","Laptop","Ice Cream","Elephant","Bicycle","Guitar","Rainbow","Camera"];
 let currentWord = '';
 
-// Pick a random word
-function pickWord() {
-  currentWord = words[Math.floor(Math.random() * words.length)];
-  console.log("Word for guides:", currentWord); // guides can see via console
+/* Responsive canvas sizing using devicePixelRatio */
+function resizeCanvas() {
+  // desired display width = min(maxWidth, 95% of viewport)
+  const maxWidth = 600;
+  const displayWidth = Math.min(maxWidth, Math.floor(window.innerWidth * 0.95));
+  const displayHeight = Math.round(displayWidth * 2 / 3); // 3:2 aspect ratio
+
+  // set CSS size
+  canvas.style.width = displayWidth + 'px';
+  canvas.style.height = displayHeight + 'px';
+
+  // set actual pixel buffer size for crispness on high-dpi screens
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.round(displayWidth * ratio);
+  canvas.height = Math.round(displayHeight * ratio);
+
+  // scale drawing so coordinates stay in CSS pixel units
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  // Note: resizing clears canvas content (keeps behavior simple)
+}
+window.addEventListener('load', resizeCanvas);
+window.addEventListener('resize', () => {
+  // stop timer while resizing? we won't alter game state, just resize (clears canvas)
+  resizeCanvas();
+});
+
+/* ---------- Utility: pointer positions (works for mouse + touch) ---------- */
+function getPointerPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  let clientX, clientY;
+  if (e.touches && e.touches.length) {
+    clientX = e.touches[0].clientX;
+    clientY = e.touches[0].clientY;
+  } else {
+    clientX = e.clientX;
+    clientY = e.clientY;
+  }
+  // coordinates in CSS pixels relative to canvas top-left
+  return {
+    x: clientX - rect.left,
+    y: clientY - rect.top
+  };
 }
 
-// Start timer
+/* ---------- Word + Timer ---------- */
+function pickWord() {
+  currentWord = words[Math.floor(Math.random() * words.length)];
+  console.log('WORD (for guides):', currentWord);
+}
+
 function startTimer() {
   clearInterval(timerInterval);
   time = 60;
@@ -77,65 +130,57 @@ function startTimer() {
   }, 1000);
 }
 
-// ===== Mouse Drawing =====
-canvas.addEventListener('mousedown', (e) => {
-  if (!gameStarted) return;
-  drawing = true;
-  ctx.beginPath();
-  ctx.moveTo(e.offsetX, e.offsetY);
-});
-canvas.addEventListener('mousemove', (e) => {
-  if (!drawing || !gameStarted) return;
-  ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
-  ctx.lineWidth = tool === 'pencil' ? 3 : 15; 
-  ctx.lineTo(e.offsetX, e.offsetY);
-  ctx.stroke();
-});
-canvas.addEventListener('mouseup', () => { drawing = false; ctx.closePath(); });
-canvas.addEventListener('mouseleave', () => { drawing = false; ctx.closePath(); });
-
-// ===== Touch Drawing (Mobile) =====
-canvas.addEventListener('touchstart', (e) => {
+/* ---------- Drawing logic (uses CSS pixel coords; ctx is already scaled) ---------- */
+function pointerDown(e) {
   if (!gameStarted) return;
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
   drawing = true;
+  const p = getPointerPos(e);
   ctx.beginPath();
-  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
-});
-canvas.addEventListener('touchmove', (e) => {
+  ctx.moveTo(p.x, p.y);
+}
+function pointerMove(e) {
   if (!drawing || !gameStarted) return;
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
+  const p = getPointerPos(e);
   ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
-  ctx.lineWidth = tool === 'pencil' ? 3 : 15;
-  ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  ctx.lineWidth = tool === 'pencil' ? 3 : 15; // visual width in CSS pixels; devicePixelRatio handled by transform
+  ctx.lineTo(p.x, p.y);
   ctx.stroke();
-});
-canvas.addEventListener('touchend', () => { drawing = false; ctx.closePath(); });
+}
+function pointerUp(e) {
+  if (!gameStarted) return;
+  drawing = false;
+  ctx.closePath();
+}
 
-// ===== Buttons =====
+/* Mouse events */
+canvas.addEventListener('mousedown', pointerDown);
+canvas.addEventListener('mousemove', pointerMove);
+canvas.addEventListener('mouseup', pointerUp);
+canvas.addEventListener('mouseleave', pointerUp);
+
+/* Touch events (passive:false so we can preventDefault to stop scrolling) */
+canvas.addEventListener('touchstart', pointerDown, { passive: false });
+canvas.addEventListener('touchmove', pointerMove, { passive: false });
+canvas.addEventListener('touchend', pointerUp);
+canvas.addEventListener('touchcancel', pointerUp);
+
+/* ---------- Buttons / controls ---------- */
+const startBtn = document.getElementById('startBtn');
 const pencilBtn = document.getElementById('pencilBtn');
 const eraserBtn = document.getElementById('eraserBtn');
 const clearBtn = document.getElementById('clearBtn');
 const nextBtn = document.getElementById('nextBtn');
 
-function setActiveTool(button) {
+function setActiveTool(buttonElem) {
   pencilBtn.classList.remove('active');
   eraserBtn.classList.remove('active');
-  button.classList.add('active');
+  if (buttonElem) buttonElem.classList.add('active');
 }
 
-pencilBtn.addEventListener('click', () => { 
-  tool = 'pencil'; 
-  setActiveTool(pencilBtn);
-});
-eraserBtn.addEventListener('click', () => { 
-  tool = 'eraser'; 
-  setActiveTool(eraserBtn);
-});
+pencilBtn.addEventListener('click', () => { tool = 'pencil'; setActiveTool(pencilBtn); });
+eraserBtn.addEventListener('click', () => { tool = 'eraser'; setActiveTool(eraserBtn); });
 clearBtn.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
 nextBtn.addEventListener('click', () => {
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -143,7 +188,7 @@ nextBtn.addEventListener('click', () => {
   startTimer();
 });
 
-document.getElementById('startBtn').addEventListener('click', () => {
+startBtn.addEventListener('click', () => {
   gameStarted = true;
   pickWord();
   startTimer();
@@ -151,9 +196,12 @@ document.getElementById('startBtn').addEventListener('click', () => {
   eraserBtn.disabled = false;
   clearBtn.disabled = false;
   nextBtn.disabled = false;
-  document.getElementById('startBtn').disabled = true;
-  setActiveTool(pencilBtn); // default tool is pencil
+  startBtn.disabled = true;
+  setActiveTool(pencilBtn);
 });
+
+/* Optional: prevent gestures that might interfere on some mobiles */
+document.addEventListener('gesturestart', (e) => e.preventDefault());
 </script>
 
 </body>
