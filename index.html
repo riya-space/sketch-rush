@@ -6,8 +6,8 @@
 <title>Sketch Rush</title>
 <style>
   body { font-family: Arial, sans-serif; text-align: center; background: #f0f0f0; margin: 0; padding: 0; }
-  #game-container { margin: 20px auto; width: 600px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
-  canvas { border: 1px solid #333; cursor: crosshair; background: #fff; border-radius: 5px; }
+  #game-container { margin: 20px auto; width: 95%; max-width: 600px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+  canvas { border: 1px solid #333; cursor: crosshair; background: #fff; border-radius: 5px; width: 100%; height: auto; touch-action: none; }
   button {
     margin: 5px;
     padding: 10px 20px;
@@ -57,7 +57,7 @@ let currentWord = '';
 // Pick a random word
 function pickWord() {
   currentWord = words[Math.floor(Math.random() * words.length)];
-  console.log("Word for guides:", currentWord); // guides can see via console or separate sheet
+  console.log("Word for guides:", currentWord); // guides can see via console
 }
 
 // Start timer
@@ -77,7 +77,7 @@ function startTimer() {
   }, 1000);
 }
 
-// Drawing functions
+// ===== Mouse Drawing =====
 canvas.addEventListener('mousedown', (e) => {
   if (!gameStarted) return;
   drawing = true;
@@ -87,14 +87,36 @@ canvas.addEventListener('mousedown', (e) => {
 canvas.addEventListener('mousemove', (e) => {
   if (!drawing || !gameStarted) return;
   ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
-  ctx.lineWidth = tool === 'pencil' ? 3 : 15; // Pencil thin, eraser thick
+  ctx.lineWidth = tool === 'pencil' ? 3 : 15; 
   ctx.lineTo(e.offsetX, e.offsetY);
   ctx.stroke();
 });
 canvas.addEventListener('mouseup', () => { drawing = false; ctx.closePath(); });
 canvas.addEventListener('mouseleave', () => { drawing = false; ctx.closePath(); });
 
-// Buttons
+// ===== Touch Drawing (Mobile) =====
+canvas.addEventListener('touchstart', (e) => {
+  if (!gameStarted) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  drawing = true;
+  ctx.beginPath();
+  ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+});
+canvas.addEventListener('touchmove', (e) => {
+  if (!drawing || !gameStarted) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
+  ctx.lineWidth = tool === 'pencil' ? 3 : 15;
+  ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+  ctx.stroke();
+});
+canvas.addEventListener('touchend', () => { drawing = false; ctx.closePath(); });
+
+// ===== Buttons =====
 const pencilBtn = document.getElementById('pencilBtn');
 const eraserBtn = document.getElementById('eraserBtn');
 const clearBtn = document.getElementById('clearBtn');
@@ -130,7 +152,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
   clearBtn.disabled = false;
   nextBtn.disabled = false;
   document.getElementById('startBtn').disabled = true;
-  setActiveTool(pencilBtn); // default active tool is pencil
+  setActiveTool(pencilBtn); // default tool is pencil
 });
 </script>
 
