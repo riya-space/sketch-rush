@@ -20,14 +20,35 @@
     color: #fff;
     transition: all 0.18s ease;
   }
-  button:hover { background-color: #555; transform: translateY(-2px); }
-  button:active { background-color: #111; transform: translateY(1px); }
+  button:hover { transform: translateY(-2px); }
+  button:active { transform: translateY(1px); }
   button:disabled { background-color: #aaa; cursor: not-allowed; transform: none; }
   button.active { background-color: #007BFF; color: #fff; transform: translateY(-2px); }
+  
+  /* Timer & Score */
   #timer { font-size: 20px; margin: 8px 0 0 0; }
+  #score { font-size: 18px; margin: 6px 0; font-weight: bold; }
+
+  /* Skip & Guessed buttons styled bigger below */
+  .word-actions { margin-top: 15px; display: flex; justify-content: center; gap: 15px; }
+  #skipBtn {
+    background-color: #e74c3c; /* red */
+    font-size: 16px;
+    padding: 12px 20px;
+  }
+  #skipBtn:hover { background-color: #c0392b; }
+  #guessedBtn {
+    background-color: #27ae60; /* green */
+    font-size: 16px;
+    padding: 12px 20px;
+  }
+  #guessedBtn:hover { background-color: #1e8449; }
+
   @media (max-width:420px){
     button { padding: 8px 12px; font-size: 14px; }
     #timer { font-size: 18px; }
+    .word-actions { flex-direction: column; gap: 8px; }
+    #skipBtn, #guessedBtn { width: 100%; }
   }
 </style>
 </head>
@@ -35,17 +56,22 @@
 
 <div id="game-container">
   <h1 style="margin:6px 0 10px 0;">Sketch Rush</h1>
-  <canvas id="drawingCanvas" width="600" height="400"></canvas>
+  <canvas id="drawingCanvas"></canvas>
 
   <div class="controls">
     <button id="startBtn">Start Game</button>
     <button id="pencilBtn" disabled>Pencil</button>
-    <button id="eraserBtn" disabled>Eraser</button>
     <button id="clearBtn" disabled>Clear</button>
-    <button id="nextBtn" disabled>Next Word</button>
   </div>
 
   <div id="timer">Time: 60s</div>
+  <div id="score">Score: 0</div>
+
+  <!-- Skip & Guessed below -->
+  <div class="word-actions">
+    <button id="skipBtn" disabled>Skip</button>
+    <button id="guessedBtn" disabled>Guessed</button>
+  </div>
 </div>
 
 <script>
@@ -57,40 +83,34 @@ let tool = 'pencil';
 let time = 60;
 let timerInterval = null;
 let gameStarted = false;
+let timerRunning = false;
+let score = 0;
 
-// word list (hidden from drawer)
+// word list
 const words = ["Pizza","Rocket","Sunflower","Laptop","Ice Cream","Elephant","Bicycle","Guitar","Rainbow","Camera"];
 let currentWord = '';
 
-/* Responsive canvas sizing using devicePixelRatio */
+/* Responsive canvas */
 function resizeCanvas() {
-  // desired display width = min(maxWidth, 95% of viewport)
   const maxWidth = 600;
   const displayWidth = Math.min(maxWidth, Math.floor(window.innerWidth * 0.95));
-  const displayHeight = Math.round(displayWidth * 2 / 3); // 3:2 aspect ratio
+  const displayHeight = Math.round(displayWidth * 2 / 3);
 
-  // set CSS size
   canvas.style.width = displayWidth + 'px';
   canvas.style.height = displayHeight + 'px';
 
-  // set actual pixel buffer size for crispness on high-dpi screens
   const ratio = window.devicePixelRatio || 1;
   canvas.width = Math.round(displayWidth * ratio);
   canvas.height = Math.round(displayHeight * ratio);
 
-  // scale drawing so coordinates stay in CSS pixel units
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  // Note: resizing clears canvas content (keeps behavior simple)
 }
 window.addEventListener('load', resizeCanvas);
-window.addEventListener('resize', () => {
-  // stop timer while resizing? we won't alter game state, just resize (clears canvas)
-  resizeCanvas();
-});
+window.addEventListener('resize', resizeCanvas);
 
-/* ---------- Utility: pointer positions (works for mouse + touch) ---------- */
+/* ---------- Utility ---------- */
 function getPointerPos(e) {
   const rect = canvas.getBoundingClientRect();
   let clientX, clientY;
@@ -101,38 +121,37 @@ function getPointerPos(e) {
     clientX = e.clientX;
     clientY = e.clientY;
   }
-  // coordinates in CSS pixels relative to canvas top-left
-  return {
-    x: clientX - rect.left,
-    y: clientY - rect.top
-  };
+  return { x: clientX - rect.left, y: clientY - rect.top };
 }
 
 /* ---------- Word + Timer ---------- */
 function pickWord() {
   currentWord = words[Math.floor(Math.random() * words.length)];
-  console.log('WORD (for guides):', currentWord);
+  console.log("WORD (for guide):", currentWord); // hidden from drawer
 }
 
 function startTimer() {
   clearInterval(timerInterval);
   time = 60;
   document.getElementById('timer').innerText = `Time: ${time}s`;
+  timerRunning = true;
   timerInterval = setInterval(() => {
     time--;
     document.getElementById('timer').innerText = `Time: ${time}s`;
     if (time <= 0) {
       clearInterval(timerInterval);
-      ctx.clearRect(0, 0, canvas.width, canvas.height); // auto clear
+      timerRunning = false;
+      alert("⏰ Times up!");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       time = 60;
       document.getElementById('timer').innerText = `Time: ${time}s`;
     }
   }, 1000);
 }
 
-/* ---------- Drawing logic (uses CSS pixel coords; ctx is already scaled) ---------- */
+/* ---------- Drawing ---------- */
 function pointerDown(e) {
-  if (!gameStarted) return;
+  if (!gameStarted || !timerRunning) return;
   e.preventDefault();
   drawing = true;
   const p = getPointerPos(e);
@@ -140,49 +159,54 @@ function pointerDown(e) {
   ctx.moveTo(p.x, p.y);
 }
 function pointerMove(e) {
-  if (!drawing || !gameStarted) return;
+  if (!drawing || !gameStarted || !timerRunning) return;
   e.preventDefault();
   const p = getPointerPos(e);
-  ctx.strokeStyle = tool === 'pencil' ? '#000' : '#fff';
-  ctx.lineWidth = tool === 'pencil' ? 3 : 15; // visual width in CSS pixels; devicePixelRatio handled by transform
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
   ctx.lineTo(p.x, p.y);
   ctx.stroke();
 }
 function pointerUp(e) {
-  if (!gameStarted) return;
+  if (!gameStarted || !timerRunning) return;
   drawing = false;
   ctx.closePath();
 }
 
-/* Mouse events */
+/* Events */
 canvas.addEventListener('mousedown', pointerDown);
 canvas.addEventListener('mousemove', pointerMove);
 canvas.addEventListener('mouseup', pointerUp);
 canvas.addEventListener('mouseleave', pointerUp);
 
-/* Touch events (passive:false so we can preventDefault to stop scrolling) */
 canvas.addEventListener('touchstart', pointerDown, { passive: false });
 canvas.addEventListener('touchmove', pointerMove, { passive: false });
 canvas.addEventListener('touchend', pointerUp);
 canvas.addEventListener('touchcancel', pointerUp);
 
-/* ---------- Buttons / controls ---------- */
+/* ---------- Buttons ---------- */
 const startBtn = document.getElementById('startBtn');
 const pencilBtn = document.getElementById('pencilBtn');
-const eraserBtn = document.getElementById('eraserBtn');
 const clearBtn = document.getElementById('clearBtn');
-const nextBtn = document.getElementById('nextBtn');
+const skipBtn = document.getElementById('skipBtn');
+const guessedBtn = document.getElementById('guessedBtn');
 
 function setActiveTool(buttonElem) {
-  pencilBtn.classList.remove('active');
-  eraserBtn.classList.remove('active');
-  if (buttonElem) buttonElem.classList.add('active');
+  pencilBtn.classList.add('active');
 }
 
 pencilBtn.addEventListener('click', () => { tool = 'pencil'; setActiveTool(pencilBtn); });
-eraserBtn.addEventListener('click', () => { tool = 'eraser'; setActiveTool(eraserBtn); });
 clearBtn.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
-nextBtn.addEventListener('click', () => {
+
+skipBtn.addEventListener('click', () => {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  pickWord();
+  startTimer();
+});
+
+guessedBtn.addEventListener('click', () => {
+  score++;
+  document.getElementById('score').innerText = `Score: ${score}`;
   ctx.clearRect(0,0,canvas.width,canvas.height);
   pickWord();
   startTimer();
@@ -193,14 +217,14 @@ startBtn.addEventListener('click', () => {
   pickWord();
   startTimer();
   pencilBtn.disabled = false;
-  eraserBtn.disabled = false;
   clearBtn.disabled = false;
-  nextBtn.disabled = false;
+  skipBtn.disabled = false;
+  guessedBtn.disabled = false;
   startBtn.disabled = true;
   setActiveTool(pencilBtn);
 });
 
-/* Optional: prevent gestures that might interfere on some mobiles */
+/* Prevent zoom gestures on mobile */
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 </script>
 
