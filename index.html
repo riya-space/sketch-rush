@@ -28,6 +28,7 @@
   /* Timer & Score */
   #timer { font-size: 20px; margin: 8px 0 0 0; }
   #score { font-size: 18px; margin: 6px 0; font-weight: bold; }
+  #message { font-size: 18px; margin: 8px 0; color: #e74c3c; }
 
   /* Skip & Guessed buttons styled bigger below */
   .word-actions { margin-top: 15px; display: flex; justify-content: center; gap: 15px; }
@@ -66,6 +67,7 @@
 
   <div id="timer">Time: 60s</div>
   <div id="score">Score: 0</div>
+  <div id="message"></div>
 
   <!-- Skip & Guessed below -->
   <div class="word-actions">
@@ -127,13 +129,14 @@ function getPointerPos(e) {
 /* ---------- Word + Timer ---------- */
 function pickWord() {
   currentWord = words[Math.floor(Math.random() * words.length)];
-  console.log("WORD (for guide):", currentWord); // hidden from drawer
+  console.log("WORD (for guide):", currentWord); // only for host
 }
 
 function startTimer() {
   clearInterval(timerInterval);
   time = 60;
   document.getElementById('timer').innerText = `Time: ${time}s`;
+  document.getElementById('message').innerText = "";
   timerRunning = true;
   timerInterval = setInterval(() => {
     time--;
@@ -141,10 +144,8 @@ function startTimer() {
     if (time <= 0) {
       clearInterval(timerInterval);
       timerRunning = false;
-      alert("⏰ Times up!");
+      document.getElementById('message').innerText = "⏰ Times up!";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      time = 60;
-      document.getElementById('timer').innerText = `Time: ${time}s`;
     }
   }, 1000);
 }
@@ -199,16 +200,15 @@ pencilBtn.addEventListener('click', () => { tool = 'pencil'; setActiveTool(penci
 clearBtn.addEventListener('click', () => ctx.clearRect(0,0,canvas.width,canvas.height));
 
 skipBtn.addEventListener('click', () => {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  pickWord();
-  startTimer();
+  ctx.clearRect(0,0,canvas.width,canvas.height); // clear only
+  startTimer(); // restart timer, keep same word
 });
 
 guessedBtn.addEventListener('click', () => {
   score++;
   document.getElementById('score').innerText = `Score: ${score}`;
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  pickWord();
+  pickWord(); // new word
   startTimer();
 });
 
